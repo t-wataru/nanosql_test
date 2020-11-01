@@ -1,0 +1,72 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>nanosql-test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@nano-sql/core@2.3.7/dist/nano-sql.min.js"
+        integrity="sha256-W1pVgKda7GC4fwXqq9jfOrssBDJJXZqck+ultRPVzmc=" crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <script>
+        (async _ => {
+            とりあえずSelectが叩けるかテスト: {
+                (async _ => {
+                    const result = await nSQL([
+                        { name: "bill", age: 20 },
+                        { name: "tom", age: 30 }
+                    ]).query("select").where(["age", "=", 20]).exec();
+                    console.assert(result[0].name == "bill" && result[0].age == 20, result);
+                })();
+            }
+            データベースを作ってみるテスト: {
+                // typical setup
+                await nSQL().createDatabase({
+                    id: "my_db", // can be anything that's a string
+                    mode: "PERM", // save changes to IndexedDB, WebSQL or SnapDB!
+                    tables: [ // tables can be created as part of createDatabase or created later with create table queries
+                        {
+                            name: "users",
+                            model: {
+                                "id:string": { pk: true },
+                                "name:string": {},
+                                "age:int": {}
+                            }
+                        }
+                    ],
+                    version: 3, // current schema/database version
+                    onVersionUpdate: (prevVersion) => { // migrate versions
+                        return new Promise((res, rej) => {
+                            switch (prevVersion) {
+                                case 1:
+                                    // migrate v1 to v2
+                                    res(2);
+                                    break;
+                                case 2:
+                                    // migrate v2 to v3
+                                    res(3);
+                                    break;
+                            }
+
+                        });
+
+                    }
+                });
+                await nSQL("users").query("upsert", { id: 1, name: "bill", age: 10 }).exec();
+                await nSQL("users").query("upsert", { id: 2, name: "トムの勝ちデース", age: 20 }).exec();
+                const result = await nSQL("users").query("select").where(["age", "=", 20]).exec();
+                console.assert(result[0].name == "トムの勝ちデース" && result[0].age == 20, result);
+                console.log(nSQL().listDatabases());
+                /*
+                ドロップテーブル仕様とするとエラーが発生する
+                > nano-sql.min.js:1 Uncaught (in promise) TypeError: Cannot read property 'pkCol' of undefined
+                > nano-sql.min.js:1 nSQL: Error updating table total. TypeError: Cannot read property 'pkCol' of undefined
+                修正される様子がない -> https://github.com/ClickSimply/Nano-SQL/issues/196
+                */
+                await nSQL("my_db").dropDatabase("my_db");
+            }
+        })();
+    </script>
+</body>
+
+</html>
